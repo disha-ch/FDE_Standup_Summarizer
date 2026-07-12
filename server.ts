@@ -443,10 +443,9 @@ ${messagesPromptText}
       });
     }
   }
-  setupVite();
 
-  // Start listening on port 3000
   if (!process.env.VERCEL) {
+    setupVite();
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}...`);
     });
