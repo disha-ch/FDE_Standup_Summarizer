@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { 
-  AlertOctagon, 
   Loader2, 
   CheckCircle, 
   Clock, 
@@ -12,40 +10,16 @@ import {
   Trash2, 
   Copy, 
   Search, 
-  User, 
-  ExternalLink, 
-  Lock, 
-  Unlock, 
   Users, 
-  ArrowRight,
-  RefreshCw,
-  FileText,
-  AlertTriangle,
-  History,
-  CheckCircle2,
-  Calendar
+  RefreshCw, 
+  FileText, 
+  AlertTriangle, 
+  History, 
+  Calendar 
 } from "lucide-react";
 import { RawMessage, TeamMember, Ticket, SegregatedResult } from "./types";
 
-// Initialize Supabase Client
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  throw new Error("Missing Supabase environment variables");
-}
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
 export default function App() {
-  // Authentication State
-  const [session, setSession] = useState<any>(null);
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
-  const [isDemoMode, setIsDemoMode] = useState(false);
-
   // App Dashboard State
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [totalPending, setTotalPending] = useState(0);
@@ -62,19 +36,6 @@ export default function App() {
 
   // Modal / Historical View State
   const [viewingHistoryTicket, setViewingHistoryTicket] = useState<Ticket | null>(null);
-
-  // Listen to Supabase authorization changes
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   // Fetch Dashboard State
   const fetchDashboardStatus = async () => {
@@ -103,13 +64,11 @@ export default function App() {
     }
   };
 
-  // Synchronize on active login or demo activation
+  // Synchronize on mount
   useEffect(() => {
-    if (session || isDemoMode) {
-      fetchDashboardStatus();
-      fetchHistory();
-    }
-  }, [session, isDemoMode]);
+    fetchDashboardStatus();
+    fetchHistory();
+  }, []);
 
   // Fetch individual user messages when selected
   useEffect(() => {
@@ -127,44 +86,6 @@ export default function App() {
         .catch((err) => console.error("Error loading user messages", err));
     }
   }, [selectedUser]);
-
-  // Handle Logins with Supabase
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    setAuthError(null);
-    setAuthSuccessMsg(null);
-
-    try {
-      if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email: authEmail,
-          password: authPassword,
-        });
-        if (error) throw error;
-        setAuthSuccessMsg("Account created! Please check your email for the confirmation link or use Demo Bypass.");
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: authEmail,
-          password: authPassword,
-        });
-        if (error) throw error;
-      }
-    } catch (error: any) {
-      setAuthError(error.message || "An authentication error occurred.");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  // Log Out handler
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setIsDemoMode(false);
-    setSession(null);
-    setSelectedUser(null);
-    setActiveTicket(null);
-  };
 
   // Trigger Gemini Segregation
   const triggerSegregator = async () => {
@@ -253,117 +174,6 @@ export default function App() {
     );
   });
 
-  // Render Login Layout if not authenticated
-  if (!session && !isDemoMode) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 selection:bg-teal-500 selection:text-white font-sans">
-        <div className="absolute top-0 right-0 p-4 text-xs text-slate-500 font-mono">
-          System Time: 2026-06-20
-        </div>
-
-        <div className="w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl p-8 space-y-6">
-          <div className="text-center space-y-2">
-            <div className="inline-flex p-3 bg-teal-500/10 border border-teal-500/25 rounded-2xl text-teal-400 mb-2">
-              <Sparkles className="w-8 h-8 animate-pulse" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white font-sans">Standup_Summarizer</h1>
-            <p className="text-sm text-slate-400">
-              Vikram&apos;s AI dashboard to centrally collect, parse, and segregate team daily standup threads.
-            </p>
-          </div>
-
-
-
-          {authError && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/25 rounded-lg text-rose-400 text-xs flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{authError}</span>
-            </div>
-          )}
-
-          {authSuccessMsg && (
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 rounded-lg text-emerald-400 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{authSuccessMsg}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleAuth} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Manager Email Address
-              </label>
-              <input
-                type="email"
-                required
-                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder-slate-500"
-                placeholder="vikram@company.com"
-                value={authEmail}
-                onChange={(e) => setAuthEmail(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder-slate-500"
-                placeholder="••••••••"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full py-2.5 px-4 bg-teal-500 hover:bg-teal-400 active:bg-teal-600 disabled:opacity-50 text-slate-950 font-semibold rounded-xl text-sm transition-all duration-150 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/10 cursor-pointer"
-            >
-              {authLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  {isSignUp ? "Create Admin Account" : "Secure Leader Sign In"}
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-slate-700"></span>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-slate-800 px-3 text-slate-400">Or Experience Instantly</span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setIsDemoMode(true)}
-            className="w-full py-2.5 px-4 bg-slate-900/80 hover:bg-slate-700 text-teal-300 hover:text-white border border-teal-500/35 hover:border-teal-400/60 font-semibold rounded-xl text-sm transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <User className="w-4 h-4" />
-            <span>Bypass Auth &amp; Enter Demo Admin Portal</span>
-          </button>
-
-          <div className="pt-2 text-center">
-            <button
-              type="button"
-              className="text-xs text-slate-400 hover:text-teal-400 transition"
-              onClick={() => setIsSignUp(!isSignUp)}
-            >
-              {isSignUp ? "Already have a manager profile? Sign In" : "Register a new admin profile"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Render Dashboard
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -406,28 +216,14 @@ export default function App() {
             <div className="h-6 w-px bg-slate-800 hidden sm:block"></div>
 
             <div className="flex items-center gap-2">
-              <div className="hidden lg:flex flex-col text-right">
+              <div className="hidden sm:flex flex-col text-right">
                 <span className="text-xs text-slate-300 font-semibold font-mono">
-                  {session?.user?.email || "Vikram (Demo Admin)"}
+                  Vikram (Manager)
                 </span>
-                <span className="text-[10px] text-slate-500 flex items-center gap-1 justify-end">
-                  {isDemoMode ? (
-                    <>
-                      <Unlock className="w-2.5 h-2.5 text-amber-500" /> Demo Session
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-2.5 h-2.5 text-emerald-500" /> Secure Admin
-                    </>
-                  )}
+                <span className="text-[10px] text-emerald-400 flex items-center gap-1 justify-end font-mono">
+                  ● Public Access Mode
                 </span>
               </div>
-              <button
-                onClick={handleLogout}
-                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 text-xs font-semibold rounded-xl transition border border-rose-500/20 cursor-pointer"
-              >
-                Log Out
-              </button>
             </div>
           </div>
         </div>

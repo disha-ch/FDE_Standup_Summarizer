@@ -1,14 +1,16 @@
+// Standup_Summarizer Backend Server
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// Define local data store path
-const DATA_FILE = path.join(process.cwd(), "standup_data_store.json");
+// Define local data store path (use /tmp in production/Vercel to avoid read-only filesystem errors)
+const DATA_FILE = process.env.NODE_ENV === "production" || process.env.VERCEL
+  ? path.join("/tmp", "standup_data_store.json")
+  : path.join(process.cwd(), "standup_data_store.json");
 
 // Define team members as in the architecture diagram
 const TEAM_MEMBERS = [
@@ -224,12 +226,10 @@ function saveStore() {
   fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2));
 }
 
-// Start Server Setup
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  app.use(express.json());
+app.use(express.json());
 
   // API 1: Fetch overall dashboard status (users + outstanding counts + totals)
   app.get("/api/dashboard/status", (req, res) => {
@@ -427,26 +427,29 @@ ${messagesPromptText}
   });
 
   // Integrate Vite Dev Server Middleware or Static Production Build
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+  async function setupVite() {
+    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+  }
+  setupVite();
+
+  // Start listening on port 3000
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}...`);
     });
   }
 
-  // Start listening on port 3000
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}...`);
-  });
-}
-
-startServer().catch((err) => {
-  console.error("Failed to start full stack Express dev server:", err);
-});
+export default app;
